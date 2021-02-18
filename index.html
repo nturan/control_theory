@@ -1,6 +1,6 @@
 <!DOCTYPE hmtl>
 <html ng-app="controlTheoryApp">
-  <title>Controll Theory Simulation Test</title>
+  <title>Control Theory Simulation Test</title>
   <head>
     <meta charset="utf-8">
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.9/angular.min.js"></script>
@@ -8,8 +8,45 @@
     <script src="simPhys.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/5.4.0/math.min.js"></script>
+    <script type="module" src="app.js"></script>
+    <link rel="stylesheet" href="style.css">
   </head>
   <body ng-controller="MainController as main" oncontextmenu="return false;">
-    <script type="module" src="app.js"></script>
+    <div id="telemetry">
+      <table>
+        <tr>
+          <td><input type="checkbox" id="pause"
+                     ng-model="main.pauseSim"> toggle pauseh
+          </td>
+          <td>northwind
+          </td>
+          <td>eastwind
+          </td>
+          <td>air density
+          </td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" ng-model="main.help" id="helpT"
+                                     ng-change="main.toggleHelp()">show help
+          </td>
+          <td><input type="number" step="0.05" ng-model="main.nwind">
+          </td>
+          <td><input type="number" step="0.05" ng-model="main.ewind">
+          </td>
+          <td><input type="number" step="0.05" ng-model="main.density">
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div id="help">
+      <ul>
+        <li> ctrl + right click: to go to clicked position on the ground</li>
+        <li> +/-: to increase / decrease altitude</li>
+        <li> Q/E: for yaw control </li>
+        <li> p: for toggling pause </li>
+        <li> h: for toggling help </li>
+        <li> experiment with different wind speeds and air densities</li>
+      </ul>
+    </div>
   </body>
 </html>

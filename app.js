@@ -1,6 +1,7 @@
 import * as THREE from 'https://unpkg.com/three/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three/examples/jsm/controls/OrbitControls.js';
-import { simObj } from "./resources/simObj.js"
+import { simObj } from "./simObj.js"
+import {Integrator} from "./physics_engine/physics_engine.js";
 
 
 angular.module('controlTheoryApp', []).controller('MainController', function ($scope){
@@ -52,71 +53,7 @@ angular.module('controlTheoryApp', []).controller('MainController', function ($s
 
 
 
-    main.moveUp = function (){
-      setAlt += 0.25;
-      actor.setPoint[0] = 2 + setAlt;
-      actor.pidMatrix.pitch.master.er = 0;
-      actor.pidMatrix.pitch.second.er = 0;
-      actor.pidMatrix.pitch.third.er = 0;
-      actor.pidMatrix.roll.master.er = 0;
-      actor.pidMatrix.roll.second.er = 0;
-      actor.pidMatrix.roll.third.er = 0;
-    };
-
-    main.moveDown = function (){
-      setAlt -= 0.25;
-      actor.setPoint[0] = 2 + setAlt;
-      actor.pidMatrix.pitch.master.er = 0;
-      actor.pidMatrix.pitch.second.er = 0;
-      actor.pidMatrix.pitch.third.er = 0;
-      actor.pidMatrix.roll.master.er = 0;
-      actor.pidMatrix.roll.second.er = 0;
-      actor.pidMatrix.roll.third.er = 0;
-    };
-
-    main.moveNorth = function (){
-      actor.setPoint[2] += 1;
-      destArrow.position.x += 1;
-      actor.pidMatrix.pitch.master.er = 0;
-      actor.pidMatrix.pitch.second.er = 0;
-      actor.pidMatrix.pitch.third.er = 0;
-      actor.pidMatrix.roll.master.er = 0;
-      actor.pidMatrix.roll.second.er = 0;
-      actor.pidMatrix.roll.third.er = 0;
-    };
-
-    main.moveSouth = function (){
-      actor.setPoint[2] -= 1;
-      destArrow.position.x -= 1;
-      actor.pidMatrix.pitch.master.er = 0;
-      actor.pidMatrix.pitch.second.er = 0;
-      actor.pidMatrix.pitch.third.er = 0;
-      actor.pidMatrix.roll.master.er = 0;
-      actor.pidMatrix.roll.second.er = 0;
-      actor.pidMatrix.roll.third.er = 0;
-    };
-
-    main.moveEast = function (){
-      actor.setPoint[1] += 1;
-      destArrow.position.z += 1;
-      actor.pidMatrix.pitch.master.er = 0;
-      actor.pidMatrix.pitch.second.er = 0;
-      actor.pidMatrix.pitch.third.er = 0;
-      actor.pidMatrix.roll.master.er = 0;
-      actor.pidMatrix.roll.second.er = 0;
-      actor.pidMatrix.roll.third.er = 0;
-    };
-
-    main.moveWest = function (){
-      actor.setPoint[1] -= 1;
-      destArrow.position.z -= 1;
-      actor.pidMatrix.pitch.master.er = 0;
-      actor.pidMatrix.pitch.second.er = 0;
-      actor.pidMatrix.pitch.third.er = 0;
-      actor.pidMatrix.roll.master.er = 0;
-      actor.pidMatrix.roll.second.er = 0;
-      actor.pidMatrix.roll.third.er = 0;
-    };
+    
 
     main.toggleHelp = function(){
       if(main.help){
@@ -135,12 +72,6 @@ angular.module('controlTheoryApp', []).controller('MainController', function ($s
 
       mouse.x = (event.clientX / window.innerWidth ) * 2 - 1;
       mouse.y = - (event.clientY / window.innerHeight ) * 2 + 1;
-      try{
-        pickVector3FromScene(ground, mouse, camera);
-        controls.enabled = true;
-      }catch(error){
-        controls.enabled = true;
-      }
     }
 
 
@@ -154,7 +85,7 @@ angular.module('controlTheoryApp', []).controller('MainController', function ($s
                                 click.x, 
                                 setYaw*Math.PI/90];
            destArrow.position.x = click.x;
-           destArrow.position.y = click.y + 0.2;
+           destArrow.position.y = click.y;
            destArrow.position.z = click.z;
            actor.pidMatrix.pitch.master.er = 0;
            actor.pidMatrix.pitch.second.er = 0;
@@ -208,11 +139,6 @@ angular.module('controlTheoryApp', []).controller('MainController', function ($s
       actor.mesh.position.y = actor.position.y;
       actor.mesh.position.z = actor.position.z;
       scene.add(actor.mesh);
-        //new THREE.GridHelper( size, divisions )
-//      let gridHelper = new THREE.PolarGridHelper(100, 50, 10, 50);
-//      gridHelper.rotation.x = Math.PI / 2;
-//      gridHelper.name = "PolarGrid";
-//      scene.add(gridHelper);
       actor.setPoint = [2+setAlt, 
                             0.0,
                             0.0, 
@@ -225,43 +151,34 @@ angular.module('controlTheoryApp', []).controller('MainController', function ($s
 ////////////////////////////////////////////////////////////////////////////////
           
     function physTick(){
-      actor.addForce({x: 0, y: -gravity*actor.mass, z:0});      
+      actor.physics_body.ApplyForce({x: 0, y: -gravity*actor.mass, z:0});      
       //air resistance
-      actor.addForce(simPhys.airResistance(actor.velocity, main.density));
+      actor.physics_body.ApplyForce(simPhys.airResistance(actor.physics_body.velocity, main.density));
       //wind
-      actor.addForce({x: main.nwind*main.density, 
-                      y: 0, 
-                      z:-main.ewind*main.density});
+      actor.physics_body.ApplyForce({x: main.nwind*main.density, 
+                                     y: 0, 
+                                     z:-main.ewind*main.density});
       actor.flightController(phsCycle);
-      actor.updateStateVector(phsCycle);
+      actor.ApplyThrust();
+      actor.telemetry();
+      actor.physics_body.UpdateStateVector(0.0, phsCycle, Integrator.rk4);
+      actor.mesh.position.set(
+        actor.physics_body.position.x,
+        actor.physics_body.position.y,
+        actor.physics_body.position.z);
+      actor.mesh.setRotationFromQuaternion(
+          actor.physics_body.quaternion);
     }
 ////////////////////////////////////////////////////////////////////////////////
     function update(){
       if(!main.pauseSim){
         physTick();
+        physTick();
       }
-
-          //this one kills performance
       updateThrustVectors(actor);  
-      actor.mesh.position.x = actor.position.x;
-      actor.mesh.position.y = actor.position.y;
-      actor.mesh.position.z = actor.position.z;
-
-//      var relativeCameraOffset = new THREE.Vector3(3, -3, 3);
-
       controls.update();
     }
-////////////////////////////////////////////////////////////////////////////////
-    function joystickResponse(control, sens, speed, tol){
-      if(Math.abs(control)<tol){
-        control = 0;
-      }else if(control > 0){
-        control -= speed*sens;
-      }else if(control < 0){
-        control += speed*sens;
-      }
-      return control;
-    }
+
 ////////////////////////////////////////////////////////////////////////////////
     function updateThrustVectors(actor){
       let dirUp = new THREE.Vector3(0, 1, 0);
@@ -358,7 +275,22 @@ angular.module('controlTheoryApp', []).controller('MainController', function ($s
         case 72://H
           main.help = !main.help;
           main.toggleHelp();
-
+        case 81://Q
+          setYaw +=0.2;
+          actor.setPoint[3] = setYaw;
+          break;
+        case 69://E
+          setYaw -=0.2;
+          actor.setPoint[3] = setYaw;
+          break;
+        case 187://+
+          setAlt += 0.25;
+          actor.setPoint[0] = setAlt;
+          break;
+        case 187://-
+          setAlt -= 0.25;
+          actor.setPoint[0] = setAlt;
+          break;
       }
     }
 

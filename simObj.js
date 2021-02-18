@@ -1,3 +1,6 @@
+import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+import {PhysicsBody} from "./physics_engine/physics_engine.js";
+
 ////////////////////////////////////////////////////////////////////////////////
 class simObj{
   constructor(mass, position, engine, scale, mesh, pidMatrix){
@@ -8,32 +11,10 @@ class simObj{
     this.mesh = mesh;
     this.pidMatrix = pidMatrix;
     this.velocity = {x: 0, y: 0, z: 0};
-    this.acceleration = {x: 0, y: 0, z: 0};
-    this.force = {x: 0, y: 0, z: 0};
-    this.w = {x: 0, y: 0, z: 0};
+    this.physics_body = new PhysicsBody(mass, position, this.velocity, this.calcInertiaTensor.bind(this));
+    
     this.thrust = {LF: 0, RF: 0, LB: 0, RB: 0};
     this.engMassRatio = 0.25;
-    this.inertiaTensor = this.calcInertiaTensor();
-    this.quaternion = this.mesh.quaternion;
-    this.L = math.multiply(this.inertiaTensor, [[this.w.x],
-                                                [this.w.y],
-                                                [this.w.z]]);
-    this.euler = new THREE.Euler();
-    this.euler.setFromQuaternion(this.quaternion);
-    this.stateVector = math.matrix([this.position.x, 
-                                    this.position.y, 
-                                    this.position.z,
-                                    this.mesh.quaternion.x, 
-                                    this.mesh.quaternion.y, 
-                                    this.mesh.quaternion.z,
-                                    this.mesh.quaternion.w,
-                                    this.velocity.x*this.mass, 
-                                    this.velocity.y*this.mass, 
-                                    this.velocity.z*this.mass,
-                                    this.L._data[0][0], 
-                                    this.L._data[1][0], 
-                                    this.L._data[2][0]
-                                   ]);
     this.landed = false;
     this.time = 0;
     this.counter = 0;
@@ -54,76 +35,10 @@ class simObj{
     this.roll = 0;
     this.yaw = 0;
   }
-  
-  updateStateVector(step){
-    this.time += step;
-    this.telemetry();
-    //Runge-Kutta-Integrator
-    //Slopes
-    let k1 = this.dXdt(this.stateVector);
 
-    let k2 = this.dXdt(math.add(this.stateVector, math.multiply(step/2, k1)));
-    let k3 = this.dXdt(math.add(this.stateVector, math.multiply(step/2, k2)));
-    let k4 = this.dXdt(math.add(this.stateVector, math.multiply(step, k3)));
-    //new stateVector
-    this.stateVector = math.add(this.stateVector,
-                                math.multiply(step/6, 
-                                             math.add(k1,
-                                                      math.multiply(2, k2),
-                                                      math.multiply(2, k3),
-                                                      k4)));
-
-    let newQ = new THREE.Quaternion(this.stateVector._data[3], 
-                                    this.stateVector._data[4],
-                                    this.stateVector._data[5], 
-                                    this.stateVector._data[6]);
-    newQ.normalize();
-
-    this.quaternion = newQ;
-    this.stateVector.subset(math.index([3, 4, 5, 6]), [newQ.x, 
-                                                       newQ.y, 
-                                                       newQ.z, 
-                                                       newQ.w]);
-
-    this.position = {x: this.stateVector._data[0], 
-                     y: this.stateVector._data[1], 
-                     z: this.stateVector._data[2]};
-    let vel = this.calcVel(this.stateVector);
-    this.velocity = {x: vel[0], y: vel[1], z: vel[2]};
-    
-    this.euler.setFromQuaternion(newQ);
-    this.mesh.setRotationFromQuaternion(newQ);
-    this.force = {x: 0, y: 0, z: 0};
-    let wQ = this.calcW(this.stateVector);
-    this.w = {x: wQ.x, y: wQ.y, z: wQ.z};
-    this.L = math.matrix([[this.stateVector._data[10]], 
-                          [this.stateVector._data[11]], 
-                          [this.stateVector._data[12]]]);
-  }
-  
-  dXdt(stateVector){
-    let F = this.calcForce(); // return as array
-    let tau = this.calcTorque(); // return as array
-    let v = this.calcVel(stateVector); // return as array
-    let w = this.calcW(stateVector); //return as three.js quaternion
-
-
-    let q = new THREE.Quaternion(stateVector._data[3], stateVector._data[4],
-                                 stateVector._data[5], stateVector._data[6]);
-
-
-
-
-    q.normalize();
-    let qs = new THREE.Quaternion();
-    qs.multiplyQuaternions(q, w);
-//    qs.normalize();
-    let res = math.matrix([v[0], v[1], v[2], //velocity
-                        1/2*qs.x, 1/2*qs.y, 1/2*qs.z, 1/2*qs.w, //rotation
-                        F[0], F[1], F[2], // linear momentum
-                        tau[0], tau[1], tau[2] //angular momentum
-                       ]);
-    return res;
+  ApplyThrust(){
+    this.physics_body.ApplyForce(this.calcForce());
+    this.physics_body.ApplyTorque(this.calcTorque());
   }
   
   calcForce(){
@@ -134,13 +49,11 @@ class simObj{
                                            *this.engine*this.mass, 0);
     totalThrust.applyQuaternion(this.mesh.quaternion);
     
-    let F = math.add([this.force.x, 
-                     this.force.y, 
-                     this.force.z], totalThrust.toArray());
-    this.acceleration = {x: F[0]/this.mass, 
-                         y: F[1]/this.mass, 
-                         z: F[2]/this.mass};
-    return F;
+//    let F = math.add([this.force.x, 
+//                      this.force.y, 
+//                      this.force.z], totalThrust.toArray());
+
+    return totalThrust;
   }
   
   calcTorque(){
@@ -182,21 +95,15 @@ class simObj{
     torqueYawRF.applyQuaternion(this.mesh.quaternion);
     torqueYawLB.applyQuaternion(this.mesh.quaternion);
     torqueYawRB.applyQuaternion(this.mesh.quaternion);
-    
-    return math.add(torqueLF.toArray(), 
-                    torqueRF.toArray(), 
-                    torqueLB.toArray(), 
-                    torqueRB.toArray(),
-                    torqueYawLF.toArray(),
-                    torqueYawRF.toArray(),
-                    torqueYawLB.toArray(),
-                    torqueYawRB.toArray());
-  }
-  
-  calcVel(stateVector){
-    return [stateVector._data[7]/this.mass,
-            stateVector._data[8]/this.mass,
-            stateVector._data[9]/this.mass];
+    let torque = math.add(torqueLF.toArray(), 
+    torqueRF.toArray(), 
+    torqueLB.toArray(), 
+    torqueRB.toArray(),
+    torqueYawLF.toArray(),
+    torqueYawRF.toArray(),
+    torqueYawLB.toArray(),
+    torqueYawRB.toArray());
+    return {x: torque[0], y: torque[1], z: torque[2]};
   }
   
   calcInertiaTensor(){
@@ -250,22 +157,7 @@ class simObj{
             [2*q.x*q.z-2*q.w*q.y, 2*q.y*q.z+2*q.w*q.x, 1-2*q.x*q.x-2*q.y*q.y]];
   }
   
-  calcW(stateVector){
-    let inTen = this.calcInertiaTensor();
-    let w = math.multiply(math.inv(inTen), 
-                          [[stateVector._data[10]], 
-                           [stateVector._data[11]], 
-                           [stateVector._data[12]]]);
-    return new THREE.Quaternion(w._data[0][0], w._data[1][0], w._data[2][0], 0);
-  }
   
-  
-  addForce(force){
-    if(!this.landed){
-      this.force.x = this.force.x + force.x;
-      this.force.y = this.force.y + force.y;
-      this.force.z = this.force.z + force.z;}
-  }
 
   flightController(step){
     this.step = step;
@@ -309,21 +201,18 @@ class simObj{
 
 
   telemetry(){
-    this.tl = {px: this.position.x,
-               py: this.position.y,
-               pz: this.position.z,
-               vx: this.velocity.x,
-               vy: this.velocity.y,
-               vz: this.velocity.z,
-               ax: this.acceleration.x,
-               ay: this.acceleration.y,
-               az: this.acceleration.z,
-               wx: this.w.x,
-               wy: this.w.y,
-               wz: this.w.z,
-               rx: this.euler.x,
-               ry: this.euler.y,
-               rz: this.euler.z};
+    this.tl = {px: this.physics_body.position.x,
+               py: this.physics_body.position.y,
+               pz: this.physics_body.position.z,
+               vx: this.physics_body.velocity.x,
+               vy: this.physics_body.velocity.y,
+               vz: this.physics_body.velocity.z,
+               wx: this.physics_body.w.x,
+               wy: this.physics_body.w.y,
+               wz: this.physics_body.w.z,
+               rx: this.physics_body.euler.x,
+               ry: this.physics_body.euler.y,
+               rz: this.physics_body.euler.z};
   }
   
 
@@ -339,11 +228,6 @@ class simObj{
         console.log("vel: " + math.round(this.tl.vx, dec) + ", "
                             + math.round(this.tl.vy, dec) + ", "
                             + math.round(this.tl.vz, dec) + ". ");
-      }
-      if(info[i] == "acceleration"){
-        console.log("acc: " + math.round(this.tl.ax, dec) + ", "
-                            + math.round(this.tl.ay, dec) + ", "
-                            + math.round(this.tl.az, dec) + ", ");
       }
       if(info[i] == "rotation"){
         console.log("rot: " + math.round(this.tl.rx, dec) + ", "
@@ -413,6 +297,7 @@ class simObj{
                                  {kP: 5.0E-2, kI: 0, kD: 1.0E-2});
 
   }
+  
   thirdPID(){
     this.gas = 9.81/4/this.engine;   
     this.pidMatrix.gas.third = simPhys.loopPID(
@@ -455,3 +340,5 @@ class simObj{
     this.roll = this.limitControl(this.roll, 0.3);
   }
 }
+
+export {simObj};

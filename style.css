@@ -13,7 +13,7 @@
   width: 100%;
   top: 50px;
   color: white;
-  /* z-index: 20; */
+  z-index: 20;
 }
 
 
@@ -23,7 +23,7 @@
   color: white;
   opacity: 0.05;
 /*  background-color: white; */
-  /* z-index: 2; */
+  z-index: 2;
 }
 
 #telemetry td{
