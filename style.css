@@ -1,0 +1,45 @@
+#controlPanel{
+  position:fixed;
+  bottom: 20px;
+  width: 70%;
+  margin: auto;
+  color: white;
+/*  z-index: 10; */
+}
+
+#help{
+  position: fixed;
+  display: none;
+  width: 100%;
+  top: 50px;
+  color: white;
+  /* z-index: 20; */
+}
+
+
+#telemetry{
+  position: fixed;
+  margin-left: 80px;
+  color: white;
+  opacity: 0.05;
+/*  background-color: white; */
+  /* z-index: 2; */
+}
+
+#telemetry td{
+  color: white;
+}
+
+#telemetry:hover{
+  opacity: 1;
+}
+
+.row{
+  margin-bottom: 10px;
+}
+input{
+  width: 50px;
+}
+
+
+
