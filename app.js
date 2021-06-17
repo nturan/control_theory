@@ -1,5 +1,5 @@
-import * as THREE from 'https://unpkg.com/three/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three/examples/jsm/controls/OrbitControls.js';
+import * as THREE from "https://cdn.skypack.dev/three";
+import { OrbitControls } from 'https://cdn.skypack.dev/three/examples/jsm/controls/OrbitControls.js';
 import { simObj } from "./simObj.js"
 import {Integrator} from "./physics_engine/physics_engine.js";
 
